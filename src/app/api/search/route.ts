@@ -35,10 +35,12 @@ export async function GET(request: NextRequest) {
   if (rawFilters.keyword && !hasStructuredFilters) {
     try {
       const parsed = await parseQuery(rawFilters.keyword);
-      filters = { ...parsed.filters, keyword: rawFilters.keyword };
+      // Use parsed structured filters — don't keep keyword since it's been decomposed
+      filters = parsed.filters;
       console.log("[api/search] NL parsed:", rawFilters.keyword, "->", JSON.stringify(parsed.filters));
     } catch (err) {
       console.warn("[api/search] NL parse failed, using keyword as-is:", err);
+      // Fall back to keyword-only search
     }
   }
 
