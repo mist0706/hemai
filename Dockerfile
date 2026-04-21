@@ -1,14 +1,13 @@
 FROM node:22-alpine AS base
-
-# Install dependencies only when needed
-FROM base AS deps
 RUN apk add --no-cache libc6-compat
+
+# Install ALL dependencies (including dev) for build
+FROM base AS deps
 WORKDIR /app
-
 COPY package.json package-lock.json* ./
-RUN npm ci --only=production
+RUN npm ci
 
-# Rebuild the source code only when needed
+# Build the app
 FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
@@ -18,7 +17,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 
 RUN npm run build
 
-# Production image, copy all the files and run next
+# Production image — only standalone output
 FROM base AS runner
 WORKDIR /app
 
