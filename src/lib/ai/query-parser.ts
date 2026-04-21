@@ -165,8 +165,8 @@ function quickParse(text: string): ParsedQuery | null {
   }
 
   // Area detection ("i Majorna", "i Askim", "på Södermalm")
-  // Match Swedish area names (including åäö, compound names like "Stockholm centrum")
-  const areaMatch = lower.match(/\bi\s+([a-zäåö]+\s*[a-zäåö]*)/);
+  // Match Swedish area names — stop at prepositions, numbers, and common stop words
+  const areaMatch = lower.match(/\bi\s+([a-zäåö]+(?:\s+[a-zäåö]+)*?)(?:\s+(?:under|över|med|mellan|från|till|på|i|för|vid)\s|\s*\d|$)/);
   if (areaMatch) {
     const areaRaw = areaMatch[1].trim();
     // Capitalize first letter of each word
