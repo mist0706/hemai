@@ -25,20 +25,34 @@ export async function GET(request: NextRequest) {
     sortBy: (searchParams.get("sort") as any) || undefined,
   };
 
+  // If only keyword (q) is provided with no other structured filters,
+  // try NL parsing to extract structured filters for better matching
+  const hasStructuredFilters = rawFilters.city || rawFilters.minPrice || rawFilters.maxPrice
+    || rawFilters.minRooms || rawFilters.maxRooms || rawFilters.minSize || rawFilters.maxSize
+    || rawFilters.housingType?.length || rawFilters.housingForm?.length || rawFilters.neighborhoods?.length;
+
+  let filters = rawFilters;
+  if (rawFilters.keyword && !hasStructuredFilters) {
+    try {
+      const parsed = await parseQuery(rawFilters.keyword);
+      filters = { ...parsed.filters, keyword: rawFilters.keyword };
+      console.log("[api/search] NL parsed:", rawFilters.keyword, "->", JSON.stringify(parsed.filters));
+    } catch (err) {
+      console.warn("[api/search] NL parse failed, using keyword as-is:", err);
+    }
+  }
+
   try {
     let listings: Listing[];
 
     if (USE_LIVE_SCRAPERS) {
-      // Live mode: scrape real listings from Hemnet + Bovision
-      const scrapeResult = await scrapeListings(rawFilters);
+      const scrapeResult = await scrapeListings(filters);
       listings = scrapeResult.listings;
     } else {
-      // Dev mode: use mock data
-      listings = searchMockListings(rawFilters);
+      listings = searchMockListings(filters);
     }
 
-    // Enrich with AI scoring (always, even for mock data)
-    const enriched = await enrichListings(listings, rawFilters, 5);
+    const enriched = await enrichListings(listings, filters, 5);
 
     const result: SearchResult = {
       listings: enriched,
