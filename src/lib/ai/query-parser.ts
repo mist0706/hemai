@@ -169,27 +169,32 @@ function quickParse(text: string): ParsedQuery | null {
   const areaMatch = lower.match(/\bi\s+([a-zäåö]+(?:\s+[a-zäåö]+)*?)(?:\s+(?:under|över|med|mellan|från|till|på|i|för|vid)\s|\s*\d|$)/);
   if (areaMatch) {
     const areaRaw = areaMatch[1].trim();
-    // Capitalize first letter of each word
-    const area = areaRaw.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-    filters.neighborhoods = [area];
-    confidence += 0.1;
-    // Infer city from well-known neighborhoods if not already set
-    if (!cityDetected) {
-      const neighborhoodCityMap: Record<string, string> = {
-        'Majorna': 'Göteborg', 'Linné': 'Göteborg', 'Hisingen': 'Göteborg',
-        'Askim': 'Göteborg', 'Frölunda': 'Göteborg', 'Mölndal': 'Göteborg',
-        'Lindome': 'Göteborg', 'Kållered': 'Göteborg', 'Partille': 'Göteborg',
-        'Södermalm': 'Stockholm', 'Östermalm': 'Stockholm', 'Vasastan': 'Stockholm',
-        'Kungsholmen': 'Stockholm', 'Gamla Stan': 'Stockholm', 'Nacka': 'Stockholm',
-        'Limhamn': 'Malmö', 'Hyllie': 'Malmö', 'Rosengård': 'Malmö', 'Västra Hamnen': 'Malmö',
-      };
-      if (neighborhoodCityMap[area]) {
-        filters.city = neighborhoodCityMap[area];
-        cityDetected = true;
-        confidence += 0.1;
-      }
+    // Skip if the area is the same as the city (e.g., "i Göteborg" when city is already set)
+    if (cityDetected && filters.city && areaRaw.toLowerCase() === filters.city.toLowerCase()) {
+      // Don't add city as neighborhood
     } else {
-      confidence += 0.05;
+      // Capitalize first letter of each word
+      const area = areaRaw.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+      filters.neighborhoods = [area];
+      confidence += 0.1;
+      // Infer city from well-known neighborhoods if not already set
+      if (!cityDetected) {
+        const neighborhoodCityMap: Record<string, string> = {
+          'Majorna': 'Göteborg', 'Linné': 'Göteborg', 'Hisingen': 'Göteborg',
+          'Askim': 'Göteborg', 'Frölunda': 'Göteborg', 'Mölndal': 'Göteborg',
+          'Lindome': 'Göteborg', 'Kållered': 'Göteborg', 'Partille': 'Göteborg',
+          'Södermalm': 'Stockholm', 'Östermalm': 'Stockholm', 'Vasastan': 'Stockholm',
+          'Kungsholmen': 'Stockholm', 'Gamla Stan': 'Stockholm', 'Nacka': 'Stockholm',
+          'Limhamn': 'Malmö', 'Hyllie': 'Malmö', 'Rosengård': 'Malmö', 'Västra Hamnen': 'Malmö',
+        };
+        if (neighborhoodCityMap[area]) {
+          filters.city = neighborhoodCityMap[area];
+          cityDetected = true;
+          confidence += 0.1;
+        }
+      } else {
+        confidence += 0.05;
+      }
     }
   }
 
