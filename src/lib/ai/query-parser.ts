@@ -8,13 +8,15 @@ const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'qwen3.5:cloud';
 const SYSTEM_PROMPT = `Du är en Svensk fastighets-sökparsers. Konvertera användarens naturliga språkfråga till ett strukturerat JSON-filter för bostadssökning.
 
 Exempel:
-"3 rum i Majorna under 3.5M" → {"minRooms":3,"maxRooms":3,"neighborhoods":["Majorna"],"city":"Göteborg","maxPrice":3500000,"housingType":["lägenhet"]}
+"3 rum i Majorna under 3.5M" → {"minRooms":3,"neighborhoods":["Majorna"],"city":"Göteborg","maxPrice":3500000,"housingType":["lägenhet"]}
 
 "Lägenhet i Stockholm centrum med balkong 2-4 rum" → {"housingType":["lägenhet"],"city":"Stockholm","neighborhoods":["Centrum"],"minRooms":2,"maxRooms":4}
 
 "Villa i Askim över 4 rum maximalt 8M" → {"housingType":["villa"],"city":"Göteborg","neighborhoods":["Askim"],"minRooms":4,"maxPrice":8000000}
 
-"Hyresrätt 1 rum Malmö billigast" → {"housingForm":["hyresrätt"],"minRooms":1,"maxRooms":1,"city":"Malmö","sortBy":"price_asc"}
+"Hyresrätt 1 rum Malmö billigast" → {"housingForm":["hyresrätt"],"minRooms":1,"city":"Malmö","sortBy":"price_asc"}
+
+VIKTIGT OM RUM: Om någon säger "3 rum", sätt BARA minRooms=3, INTE maxRooms. Även "3:a" betyder minRooms=3. Bara "2-4 rum" ska ha både minRooms och maxRooms.
 
 Svara ENDAST med giltig JSON. Inga förklaringar. JSON måste matcha detta format:
 {
@@ -119,17 +121,25 @@ function quickParse(text: string): ParsedQuery | null {
   }
 
   // Room detection: "3 rum", "2-4 rum", "1:a", "2:a", "3:a"
-  const roomMatch = lower.match(/(\d+)[- till -]?(\d+)?\s*rum/);
+  // "3 rum" means min 3 rooms (people usually want at least that many)
+  // "2-4 rum" means min 2, max 4
+  const roomMatch = lower.match(/(\d+)\s*[-–]\s*(\d+)\s*rum/);
   if (roomMatch) {
     filters.minRooms = parseInt(roomMatch[1], 10);
-    filters.maxRooms = roomMatch[2] ? parseInt(roomMatch[2], 10) : filters.minRooms;
+    filters.maxRooms = parseInt(roomMatch[2], 10);
     confidence += 0.2;
   } else {
-    const apartmentMatch = lower.match(/(\d+):[aå]/);
-    if (apartmentMatch) {
-      filters.minRooms = parseInt(apartmentMatch[1], 10);
-      filters.maxRooms = filters.minRooms;
-      confidence += 0.15;
+    const singleRoomMatch = lower.match(/(\d+)\s*rum/);
+    if (singleRoomMatch) {
+      filters.minRooms = parseInt(singleRoomMatch[1], 10);
+      // Don't set maxRooms — allow rooms >= minRooms
+      confidence += 0.2;
+    } else {
+      const apartmentMatch = lower.match(/(\d+):[aå]/);
+      if (apartmentMatch) {
+        filters.minRooms = parseInt(apartmentMatch[1], 10);
+        confidence += 0.15;
+      }
     }
   }
 
@@ -154,12 +164,32 @@ function quickParse(text: string): ParsedQuery | null {
     confidence += 0.15;
   }
 
-  // Area detection ("i Majorna", "i Södermalm")
-  const areaMatch = lower.match(/i\s+([A-ZÄÅÖa-zäåö]+(?:\s+[A-ZÄÅÖa-zäåö]+)*)/);
-  if (areaMatch && cityDetected) {
-    const area = areaMatch[1].charAt(0).toUpperCase() + areaMatch[1].slice(1);
+  // Area detection ("i Majorna", "i Askim", "på Södermalm")
+  // Match Swedish area names (including åäö, compound names like "Stockholm centrum")
+  const areaMatch = lower.match(/\bi\s+([a-zäåö]+\s*[a-zäåö]*)/);
+  if (areaMatch) {
+    const areaRaw = areaMatch[1].trim();
+    // Capitalize first letter of each word
+    const area = areaRaw.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
     filters.neighborhoods = [area];
-    confidence += 0.15;
+    confidence += 0.1;
+    // Infer city from well-known neighborhoods if not already set
+    if (!cityDetected) {
+      const neighborhoodCityMap: Record<string, string> = {
+        'Majorna': 'Göteborg', 'Linné': 'Göteborg', 'Hisingen': 'Göteborg',
+        'Askim': 'Göteborg', 'Frölunda': 'Göteborg', 'Mölndal': 'Göteborg',
+        'Södermalm': 'Stockholm', 'Östermalm': 'Stockholm', 'Vasastan': 'Stockholm',
+        'Kungsholmen': 'Stockholm', 'Gamla Stan': 'Stockholm', 'Nacka': 'Stockholm',
+        'Limhamn': 'Malmö', 'Hyllie': 'Malmö', 'Rosengård': 'Malmö', 'Västra Hamnen': 'Malmö',
+      };
+      if (neighborhoodCityMap[area]) {
+        filters.city = neighborhoodCityMap[area];
+        cityDetected = true;
+        confidence += 0.1;
+      }
+    } else {
+      confidence += 0.05;
+    }
   }
 
   // Housing type
