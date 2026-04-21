@@ -178,6 +178,7 @@ function quickParse(text: string): ParsedQuery | null {
       const neighborhoodCityMap: Record<string, string> = {
         'Majorna': 'Göteborg', 'Linné': 'Göteborg', 'Hisingen': 'Göteborg',
         'Askim': 'Göteborg', 'Frölunda': 'Göteborg', 'Mölndal': 'Göteborg',
+        'Lindome': 'Göteborg', 'Kållered': 'Göteborg', 'Partille': 'Göteborg',
         'Södermalm': 'Stockholm', 'Östermalm': 'Stockholm', 'Vasastan': 'Stockholm',
         'Kungsholmen': 'Stockholm', 'Gamla Stan': 'Stockholm', 'Nacka': 'Stockholm',
         'Limhamn': 'Malmö', 'Hyllie': 'Malmö', 'Rosengård': 'Malmö', 'Västra Hamnen': 'Malmö',
