@@ -1,32 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
-import { AISummaryResponse } from "@/types";
+import { AISummaryResponse, Listing, SearchFilters } from "@/types";
+import { summarizeListing } from "@/lib/ai/summarizer";
+import { MOCK_LISTINGS } from "@/app/api/search/mock-data";
 
-// AI Summary endpoint — in production this will request analysis from the AI agent
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const body = await request.json();
 
-  // Mock AI summary — will be replaced by real AI agent analysis
-  const summary: AISummaryResponse = {
-    listingId: id,
-    summary: `Denna bostad har analyserats av HemAI. Baserat på pris, läge och skick bedöms detta som en bra affär för köparen. Området är välskött med goda kommunikationer och närhet till service.`,
-    score: 78,
-    tags: ["Bra läge", "Välskött", "God pendling"],
-    pros: [
-      "Bra kommunikationer till centrum",
-      "Närhet till skola och förskola",
-      "Välskött område med grön miljö",
-    ],
-    cons: [
-      "Månadsavgiften kan vara hög",
-      "Begränsad parkering i området",
-    ],
-    commuteInfo: "Ca 12 min med spårvagn till Brunnsparken. Bussförbindelse inom 3 minuters gångavstånd.",
-    neighborhoodInsight: "Ett område i utveckling med nybyggnation och förbättrad service. Stabil investeringspotential.",
-  };
+  const listing = MOCK_LISTINGS.find(l => l.id === id);
+  if (!listing) {
+    return NextResponse.json({ error: "Listing not found" }, { status: 404 });
+  }
 
-  return NextResponse.json(summary);
+  try {
+    const summary = await summarizeListing(listing, {}, listing.aiScore || 50);
+    return NextResponse.json(summary);
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: "AI summary failed", message: err.message },
+      { status: 500 }
+    );
+  }
 }
